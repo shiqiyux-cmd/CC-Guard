@@ -1,8 +1,9 @@
 /**
  * [INPUT]: Node.js、playwright-core、本机 Edge、Vite 与 tests/app.html 的契约假后端（mockIPC）。
- * [OUTPUT]: CC-Guard 界面验收：向导走完、secret 不回显、pass/block/unknown 三色、unknown 不显示绿色、启动被拦显示原因、
- *           账号切换确认、漏网置顶、只按域名提示、英文模式无中文、深色/浅色可读、只调用契约命令；每项一行 PASS/FAIL，末行汇总，失败非零退出。
- * [POS]: 前端发布前回归；截图写入系统临时目录，拦截全部外网请求，不启动应用、不碰真实账号。
+ * [OUTPUT]: CC-Guard 界面验收：向导走完、secret 不回显、pass/block/unknown 三色、unknown 不显示绿色、概览线路图只随判定上色、启动被拦显示原因、
+ *           账号切换确认、漏网置顶与侧栏计数、只按域名提示、网页版核验与关闭定位、检查规则可改、英文模式无中文（含概览与网页版）、深色/浅色可读、
+ *           只调用契约命令；每项一行 PASS/FAIL，末行汇总，失败非零退出。
+ * [POS]: 前端发布前回归；截图等入场动画结束后写入系统临时目录（docs/images 从这里取），拦截全部外网请求，不启动应用、不碰真实账号。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
 import {strict as assert} from 'node:assert';
@@ -27,7 +28,9 @@ const errors:string[]=[];
 let page:Page;
 const fixture=<T=unknown>(code:string)=>page.evaluate(code) as Promise<T>;
 const set=(code:string)=>page.evaluate(`(()=>{const s=window.appFixture.state;${code}})()`);
-const shot=async(name:string)=>{const path=join(shots,`${name}.png`);await page.screenshot({path});saved.push(path);};
+// ----- 截图前等有限次的入场动画播完（线路流动是无限动画，不等），README 截图直接取自这里 -----
+const settle=()=>page.evaluate(()=>Promise.race([Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))),new Promise(r=>setTimeout(r,2000))]));
+const shot=async(name:string)=>{const path=join(shots,`${name}.png`);await settle();await page.screenshot({path});saved.push(path);};
 const bar=()=>page.locator('.status-bar');
 const recheck=async(verdict:string)=>{await bar().getByRole('button',{name:/重新检查|Check again/}).click();await page.waitForFunction(v=>document.querySelector('.status-bar')?.getAttribute('data-verdict')===v&&!document.querySelector('.status-bar [data-loading]'),verdict);};
 const nav=(name:string|RegExp)=>page.getByRole('navigation').or(page.locator('aside')).getByRole('button',{name}).first().click();
@@ -87,6 +90,7 @@ try{
     assert.equal(await fixture("window.appFixture.commands.filter(r=>r.command==='settings_write').length"),0);
     await wizard.getByRole('button',{name:'记住这个出口'}).click();
     await wizard.getByText(/配好了/).waitFor();
+    await page.waitForFunction(()=>[...document.querySelectorAll('[role=dialog] button')].some(b=>b.textContent==='完成'&&!(b as HTMLButtonElement).disabled));
     await shot('wizard-done');
     await wizard.getByRole('button',{name:'完成'}).click();
     await wizard.waitFor({state:'detached'});
