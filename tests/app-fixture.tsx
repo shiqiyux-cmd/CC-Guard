@@ -1,6 +1,7 @@
 /**
  * [INPUT]: Tauri 官方 mockIPC / mockWindows、真实 App 根组件与 contract.ts 的命令形状。
- * [OUTPUT]: 按契约造的内存假后端：设置（secret 只写不读）、线路检查三态、节点、连接快照、启动拦截、身份与语言；记录每条命令供审计。
+ * [OUTPUT]: 按契约造的内存假后端：设置（secret 只写不读）、线路检查三态、节点、连接快照、启动拦截、身份与语言、
+ *           网页版浏览器快照（未运行 / 运行中两套核验项）与关闭定位；记录每条命令供审计。
  * [POS]: scripts/test-ui.ts 的离线入口；没有原生命令、真实账号、Clash 或网络，生产 rollup 不包含此页。
  * [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
  */
@@ -27,6 +28,36 @@ const state={
     current:{present:true,display_name:'Fixture user',email:'fixture@example.invalid',organization:null,unavailable:false},
     records:[{id:'a',name:'Fixture user',saved_at:1780000000000,bytes:2048,policy:{...defaultPolicy}},{id:'b',name:'Work account',saved_at:1780000001000,bytes:4096,policy:{...defaultPolicy}}]} as IdentityState,
 };
+const browser={running:false,location:true as boolean|null};
+// ----- 与 browser::network::checks 同形的核验项：未运行时全部待核验，运行中为一致 / 不一致混合 -----
+function browserSnapshot(){
+  const machine={platform:'windows',version:'10.0.26200',cores:8,timezone:'Asia/Shanghai',languages:['zh-CN'],locale:'zh-CN',location_enabled:browser.location,timezones:[]};
+  const location=browser.location===true?'开启':browser.location===false?'关闭':'未核验';
+  const pending=[
+    ['目标地区网络出口','pending','需要打开浏览器实测出口。'],
+    ['浏览器与机器出口','pending','点击检测机器出口；配置代理不等于已核验。'],
+    ['时区一致','pending','本机：Asia/Shanghai；浏览器：待测；出口：待测'],
+    ['目标语言与系统区域','pending','机器：zh-CN / zh-CN；浏览器：待测'],
+    ['真实设备与 CPU','pending','windows 10.0.26200 · 8 核；浏览器版本 待测 · 待测 核'],
+    ['浏览器版本','pending','引擎：140.0.7339.80；实测：待测'],
+    ['地理位置关闭','pending',`机器定位：${location}；网页权限：待测`],
+  ];
+  const running=[
+    ['目标地区网络出口','ok',`目标：美国 · 洛杉矶；实际：US · ${EXIT} · Los Angeles · Example ISP`],
+    pending[1],
+    ['时区一致','mismatch','本机：Asia/Shanghai；浏览器：America/Los_Angeles；出口：America/Los_Angeles'],
+    ['目标语言与系统区域','mismatch','机器：zh-CN / zh-CN；浏览器：en-US'],
+    ['真实设备与 CPU','ok','windows 10.0.26200 · 8 核；浏览器版本 10.0.26200 · 8 核'],
+    ['浏览器版本','ok','引擎：140.0.7339.80；实测：140.0.7339.80'],
+    ['地理位置关闭',browser.location===false?'ok':'mismatch',`机器定位：${location}；网页权限：denied`],
+  ];
+  const tail=[['真实图形与字体','pending','Canvas 与布局矩形使用稳定种子；不作为机器完全一致。'],['DNS / WebRTC 泄漏','pending','已设置代理 DNS、限制未代理 UDP、关闭 QUIC；尚未完成独立泄漏测试。']];
+  return {ui_language:state.language,exit_services:[],region:{id:'us-la',label:'美国 · 洛杉矶',country:'US',language:'en-US',locale:'en-US',timezone:'America/Los_Angeles'},
+    config:{seed:1,proxy:'',follow_machine:false,language:'en-US',timezone:'America/Los_Angeles',native_graphics:false},machine,
+    engine_version:'140.0.7339.80',engine_ready:true,running:browser.running,profile:'C:\\Fixture\\profile',identity_linked:state.identities.browser.enabled,cache:[],cache_error:'',
+    report:null,report_received_at:browser.running?Date.now()-4000:null,machine_exit:null,
+    checks:[...(browser.running?running:pending),...tail].map(([title,status,detail])=>({title,status,detail}))};
+}
 const commands:{command:string;args:any}[]=[];
 function check(line=state.settings.line):LineCheck{
   const base={mode:'rule',country:'',timezone:'',ip:'',checked_at:Date.now()};
@@ -82,9 +113,13 @@ mockIPC(async(command,args:any)=>{
       return structuredClone(state.identities);
     }
     case 'claude_cli_read':return {method:'native',path:'C:\\Fixture\\claude.exe',version:'2.1.0'};
+    case 'browser_read':return browserSnapshot();
+    case 'system_disable_location':
+      if(browser.location!==false){browser.location=false;throw '请在打开的 Windows 设置窗口中手动关闭定位权限。';}
+      return {state:browserSnapshot().machine,message:'Windows 定位权限已成功禁用并核验。'};
     case 'plugin:window|is_visible':return true;
   }
   throw `Unexpected fixture command: ${command}`;
 },{shouldMockEvents:true});
-Object.assign(window,{appFixture:{state,commands}});
+Object.assign(window,{appFixture:{state,commands,browser}});
 createRoot(document.getElementById('fixture')!).render(<Root><App/></Root>);

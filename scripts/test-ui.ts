@@ -137,8 +137,23 @@ try{
     await set('s.failCheck=false;s.force=null');await recheck('pass');
   });
 
+  await step('概览：线路图显示端口、节点与出口，判定只给轨道上色',async()=>{
+    await nav('概览');
+    await set("s.force=null");await recheck('pass');
+    const route=page.getByRole('list',{name:'Claude 流量路径'});
+    for(const text of [':7899','JP-HY2','203.0.113.7'])await route.getByText(text,{exact:true}).waitFor();
+    assert.ok((await colors('.status-bar')).some(greenish),'通过时线路图应为绿色');
+    await page.locator('.status-bar').getByText(/检查于/).waitFor();
+    await shot('overview-pass');
+    await set("s.force='block'");await recheck('block');
+    const blocked=await colors('.status-bar');
+    assert.ok(blocked.some(reddish),'拦住时线路图应为红色');assert.ok(!blocked.some(greenish),'拦住时线路图出现绿色');
+    await route.getByText('期望 203.0.113.7').waitFor();
+    await set("s.force=null");await recheck('pass');
+  });
+
   await step('启动被拦时不启动并用 Toast 显示原因',async()=>{
-    await nav('账号');
+    await nav('概览');
     await set("s.force='block'");
     await page.getByRole('button',{name:'启动 Claude Code'}).click();
     const toast=page.locator('[data-tone="block"]').filter({hasText:'没有启动：启动 Claude Code'});
@@ -181,7 +196,46 @@ try{
     assert.ok((await colors('.leak-row:first-child')).some(reddish),'漏网行不是红色');
     await set('s.processMatching=true');
     await page.getByRole('note').waitFor({state:'detached'});
+    await page.getByText('claude.exe',{exact:true}).waitFor();
     await shot('connections-leak');
+    // 漏网记录跨页面保留，侧栏「连接」旁显示本次仍在的漏网数。
+    await nav('概览');
+    assert.match(await page.locator('aside').getByRole('button',{name:/连接/}).innerText(),/1/);
+    await nav('连接');
+    assert.equal(await page.locator('.leak-row').count(),2);
+  });
+
+  await step('网页版：显示引擎、核验项与本机定位，关闭定位只交给 Windows 设置',async()=>{
+    await nav('网页版');
+    await page.getByRole('heading',{name:'网页版环境',exact:true}).waitFor();
+    await page.getByText('140.0.7339.80',{exact:true}).waitFor();
+    await page.getByText('时区一致',{exact:true}).waitFor();
+    assert.equal(await page.getByText('待核验',{exact:true}).count(),9);
+    await page.evaluate('window.appFixture.browser.running=true');
+    await page.getByRole('button',{name:'刷新',exact:true}).click();
+    await page.getByText('不一致 3').waitFor();
+    await page.getByRole('button',{name:'在 Windows 设置中关闭定位'}).click();
+    await page.getByText('请在打开的 Windows 设置窗口中手动关闭定位权限。').waitFor();
+    await page.getByRole('button',{name:'刷新',exact:true}).click();
+    await page.getByRole('button',{name:'在 Windows 设置中关闭定位'}).waitFor({state:'detached'});
+    await page.getByText('不一致 2').waitFor();
+    await shot('browser');
+  });
+
+  await step('设置页能看到并修改检查规则',async()=>{
+    await nav('设置');
+    const services=page.getByLabel('出口查询服务');
+    assert.equal(await services.inputValue(),'https://a.example.invalid\nhttps://b.example.invalid');
+    const hosts=page.getByLabel('Claude 域名');
+    await hosts.fill('anthropic.com\nclaude.ai\nclaude.com\nexample.org');
+    await page.getByRole('button',{name:'保存检查规则'}).click();
+    await page.locator('[data-tone="info"]').filter({hasText:'检查规则已保存'}).waitFor();
+    assert.deepEqual(await fixture('window.appFixture.state.settings.line.claude_hosts'),['anthropic.com','claude.ai','claude.com','example.org']);
+    await services.fill('https://a.example.invalid');
+    await page.getByRole('button',{name:'保存检查规则'}).click();
+    await page.getByRole('alert').filter({hasText:'出口查询服务至少要 2 个'}).waitFor();
+    await page.getByRole('button',{name:'还原'}).click();
+    assert.equal(await services.inputValue(),'https://a.example.invalid\nhttps://b.example.invalid');
   });
 
   await step('英文模式没有中文',async()=>{
@@ -191,7 +245,7 @@ try{
     await page.getByRole('heading',{name:'Settings'}).waitFor();
     assert.equal(await fixture('window.appFixture.state.language'),'en');
     const cjk=/[\u3400-\u9fff]/;
-    for(const [target,ready] of [['Settings','Line'],['Accounts','Accounts'],['Connections','Connections']] as const){
+    for(const [target,ready] of [['Settings','Line'],['Overview','Overview'],['Accounts','Accounts'],['Connections','Connections'],['Web','Web environment']] as const){
       await nav(target);await page.getByRole('heading',{name:ready,exact:true}).waitFor();await page.waitForTimeout(300);
       const text=await page.evaluate(()=>document.body.innerText);
       const hit=text.split('\n').find(line=>cjk.test(line));

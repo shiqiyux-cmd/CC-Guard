@@ -52,16 +52,18 @@ export function CleanupActivity({activity}:{activity:Activity|null}){
   if(!activity)return null;
   const last=activity.entries.at(-1);
   const count=last?.total&&last.stage!=='done'?`${last.current} / ${last.total}`:null;
-  return <Card aria-label={t('操作活动日志')} className={cn('space-y-2 p-3',activity.failed&&'border-block/40')}>
-    <div className="flex items-center gap-2 text-sm">
-      {activity.running?<RefreshCw className="size-4 animate-spin text-primary" aria-hidden="true"/>:<span aria-hidden="true" className={activity.failed?'text-block':'text-muted'}>{activity.failed?'!':'·'}</span>}
-      <strong>{t(titles[activity.kind])}</strong>
-      <span className="text-xs text-muted">{activity.running?t('运行中'):activity.failed?t('已停止 · 请检查'):t('已完成')}</span>
-      <Button className="ml-auto" variant="ghost" size="sm" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?t('收起日志'):t('展开日志')} [{activity.entries.length}]</Button>
+  const ratio=last?.total&&last.stage!=='done'?Math.min(1,last.current/last.total):null;
+  return <Card aria-label={t('操作活动日志')} className={cn('space-y-2.5 p-4',activity.failed&&'border-block/40')}>
+    <div className="flex items-center gap-2.5 text-[13px]">
+      {activity.running?<RefreshCw className="size-4 animate-spin text-accent" aria-hidden="true"/>:<span aria-hidden="true" className={cn('size-2 rounded-full',activity.failed?'bg-block':'bg-border-strong')}/>}
+      <strong className="font-semibold">{t(titles[activity.kind])}</strong>
+      <span className={cn('text-xs',activity.failed?'text-block':'text-muted')}>{activity.running?t('运行中'):activity.failed?t('已停止 · 请检查'):t('已完成')}</span>
+      <Button className="ml-auto" variant="ghost" size="sm" aria-expanded={open} onClick={()=>setOpen(!open)}>{open?t('收起日志'):t('展开日志')} <span className="tabular text-muted">{activity.entries.length}</span></Button>
     </div>
-    <div role="status" aria-live="polite" className="flex justify-between text-xs text-muted"><span>{t(last?.message||'准备中…')}</span>{count&&<strong>{count}</strong>}</div>
-    {open&&<div ref={logBox} role="log" aria-label={t('本次操作日志')} className="max-h-48 overflow-y-auto rounded-lg bg-muted-bg p-2 font-mono text-xs">
-      {activity.entries.map((entry,i)=><div key={i} className={cn('flex gap-2',entry.status==='error'&&'text-block')}><time className="text-muted">+{(entry.elapsed_ms/1000).toFixed(2)}s</time><span>{t(entry.message)}</span></div>)}
+    {ratio!==null&&<div aria-hidden="true" className="h-1 overflow-hidden rounded-full bg-muted-bg"><div className="h-full rounded-full bg-accent transition-[width]" style={{width:`${ratio*100}%`}}/></div>}
+    <div role="status" aria-live="polite" className="flex justify-between gap-3 text-xs text-fg-2"><span>{t(last?.message||'准备中…')}</span>{count&&<strong className="tabular">{count}</strong>}</div>
+    {open&&<div ref={logBox} role="log" aria-label={t('本次操作日志')} className="max-h-52 overflow-y-auto rounded-xl border border-border bg-muted-bg p-2.5 font-mono text-[11px] leading-5">
+      {activity.entries.map((entry,i)=><div key={i} className={cn('flex gap-3',entry.status==='error'&&'text-block')}><time className="shrink-0 text-muted tabular">+{(entry.elapsed_ms/1000).toFixed(2)}s</time><span>{t(entry.message)}</span></div>)}
     </div>}
   </Card>;
 }
