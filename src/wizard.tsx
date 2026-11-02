@@ -55,9 +55,11 @@ export function SetupWizard({open,settings,onSettings,onRecheck,onClose}:{open:b
       {step===2&&!passed&&<Button loading={busy} onClick={()=>void recheck()}>{t('重新检查')}</Button>}
       {step===2&&!saved&&<Button variant="primary" disabled={busy||!canRemember} onClick={()=>void remember()}>{t(settings.line.expected_ip?'保存线路设置':'记住这个出口')}</Button>}
     </>}>
-    <ol className="mb-4 flex gap-2" aria-label={t('设置步骤')}>{steps.map((label,index)=><li key={label} aria-current={index===step?'step':undefined}
-      className={cn('flex-1 rounded-lg border px-2 py-1.5 text-xs',index===step?'border-primary bg-primary/10 font-semibold text-primary':index<step?'border-border text-fg':'border-border text-muted')}>{index+1}. {t(label)}</li>)}</ol>
-    <fieldset disabled={busy} className="space-y-3">
+    <ol className="mb-6 grid grid-cols-3" aria-label={t('设置步骤')}>{steps.map((label,index)=><li key={label} aria-current={index===step?'step':undefined} className="relative pr-2">
+      {index<steps.length-1&&<span aria-hidden="true" className={cn('absolute left-6 right-1 top-[11px] h-0.5 rounded-full',index<step?'bg-fg':'bg-border')}/>}
+      <span aria-hidden="true" className={cn('relative grid size-6 place-items-center rounded-full border-2 font-display text-[11px] font-semibold',index<step?'border-fg bg-fg text-bg':index===step?'border-accent bg-raised text-accent':'border-border-strong bg-raised text-muted')}>{index<step?'✓':index+1}</span>
+      <span className={cn('mt-2 block text-xs',index===step?'font-semibold text-fg':index<step?'text-fg-2':'text-muted')}>{t(label)}</span></li>)}</ol>
+    <fieldset disabled={busy} className="space-y-4">
       {step===0&&<>
         <p className="text-muted">{t('打开 Clash Verge → 设置 → 外部控制，把地址和密钥填到这里。')}</p>
         <Field label={t('Clash 控制地址')} htmlFor="wizard-controller"><Input id="wizard-controller" value={controller} onChange={e=>setController(e.target.value)} spellCheck={false}/></Field>
@@ -70,10 +72,10 @@ export function SetupWizard({open,settings,onSettings,onRecheck,onClose}:{open:b
       </>}
       {step===2&&<>
         {!check&&<p className="text-muted">{t(busy?'正在检查线路…':'还没有检查结果。')}</p>}
-        {check&&<div className="space-y-2 rounded-lg border border-border p-3" data-verdict={check.verdict}>
-          <Badge tone={check.verdict==='pass'?'pass':check.verdict==='block'?'block':'unknown'}>{t(check.verdict==='pass'?'通过':check.verdict==='block'?'拦住':'无法确认')}</Badge>
-          <p>{t(check.reason)}</p>
-          {check.ip&&<p className="text-muted">{t('出口 IP {v0}',{v0:check.ip})} · {[check.country,check.timezone].filter(Boolean).join(' · ')}</p>}
+        {check&&<div className={cn('space-y-2 rounded-xl border p-4',check.verdict==='pass'?'border-pass/30 bg-pass-bg':check.verdict==='block'?'border-block/35 bg-block-bg':'border-border bg-muted-bg')} data-verdict={check.verdict}>
+          <Badge tone={check.verdict==='pass'?'pass':check.verdict==='block'?'block':'unknown'} dot>{t(check.verdict==='pass'?'通过':check.verdict==='block'?'拦住':'无法确认')}</Badge>
+          <p className="text-fg">{t(check.reason)}</p>
+          {check.ip&&<p className="font-mono text-xs text-fg-2">{t('出口 IP {v0}',{v0:check.ip})} · {[check.country,check.timezone].filter(Boolean).join(' · ')}</p>}
         </div>}
         {check&&!saved&&check.ip&&!settings.line.expected_ip&&<p className="text-muted">{t('请与服务商提供的公网出口 IP 核对。一致时点「记住这个出口」。')}</p>}
         {check&&!saved&&settings.line.expected_ip&&check.verdict!=='pass'&&<p className="text-muted">{t('如需更换已保存的出口，请关闭向导，在设置中填写服务商提供的新 IP。')}</p>}
