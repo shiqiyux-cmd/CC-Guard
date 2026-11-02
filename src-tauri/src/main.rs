@@ -25,6 +25,10 @@ mod windows;
 use tauri::{Emitter, Manager};
 fn show(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        // show() and set_focus() leave a minimized window in the taskbar.
+        if window.is_minimized().unwrap_or(false) {
+            let _ = window.unminimize();
+        }
         let _ = window.show();
         let _ = window.set_focus();
         // The page polls only while it can be seen; the tray re-checks the line in the background.
