@@ -6,7 +6,7 @@ A Windows desktop app for people who already run [Clash Verge Rev](https://githu
 
 [中文](README.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md)
 
-![Accounts page with line status, account cards and launch buttons](docs/images/status-pass.png)
+![Overview: the route map shows Claude traffic going through the dedicated port and chosen node to the public exit, with the three launch entries below](docs/images/status-pass.png)
 
 > v0.3.1, under active development. Windows 10/11 x64 only. Accounts and IPs in screenshots are test fixtures.
 
@@ -17,8 +17,9 @@ A Windows desktop app for people who already run [Clash Verge Rev](https://githu
 | Line check | Asks several independent exit-lookup services through your Claude-only port. It passes only when at least two answer, all answers agree, and the IP equals the exit you saved. |
 | Launch gate | Re-checks the line before starting Claude Code, Claude Desktop or the web version; refuses with a reason when it does not pass. |
 | Claude-only proxy | Claude Code gets the dedicated port only in its own console; Claude Desktop starts with `--proxy-server`. System proxy and your environment variables are left alone. |
-| Connection check | Reads Clash's live connections and lists Claude traffic (matched by domain and process) that did not pass through the chosen node or group. |
+| Connection check | Reads Clash's live connections and lists Claude traffic (matched by domain and process) that did not pass through the chosen node or group; the leak count shows in the sidebar. The domains, process names and exit-lookup services can be viewed and edited under Settings → Check rules. |
 | Accounts | Each account's sign-in state and local data are stored encrypted and separately; the current account is saved before switching, with rollback on failure. |
+| Web environment | The Web page shows the bundled fingerprint browser's engine version, whether it is running, whether its profile is per account, and item-by-item checks of exit, time zone, language, device and location. |
 | Setup wizard | Connect to Clash → pick the dedicated port and node → check and remember the exit. |
 
 It does **not** build proxies, fake your IP or location, or promise how the service will treat your account.

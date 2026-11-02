@@ -5,7 +5,7 @@ Windows 桌面应用：让 Claude 只走用户在 Clash（mihomo）里指定的�
 Tauri 2 + Rust（Windows x64）+ React 19 + TypeScript + Radix UI + Tailwind CSS 4 + lucide-react + Vite；SQLite（bundled）+ ring AES-256-GCM 身份保险库。
 
 <directory>
-src/ - 卡片式界面：账号、连接、设置三页，首次向导，顶部线路状态条；见其 CLAUDE.md
+src/ - 「信号所」界面：概览、账号、连接、网页版、设置五页，首次向导，线路信号条与 Claude 流量线路图；见其 CLAUDE.md
 src-tauri/ - 原生宿主：线路检查与连接核对（mihomo）、启动门禁、身份保险库、指纹浏览器、Windows 平台桥；见其 CLAUDE.md
 tests/ - 界面模拟的假后端页面与 mihomo 离线判卷台；见其 CLAUDE.md
 scripts/ - 界面模拟入口、浏览器引擎获取、CLI 管理脚本与 Windows 回归；见其 CLAUDE.md
