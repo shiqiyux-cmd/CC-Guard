@@ -1,6 +1,6 @@
 # CC-Guard
 
-Windows 桌面应用：让 Claude 只走用户在 Clash（mihomo）里指定的线路，并管理多个 Claude 账号的本地数据。应用标识 `io.github.shiqiyux-cmd.cc-guard`，当前版本 0.3.0。面向已在用 Clash Verge Rev 的用户；不部署代理、不改订阅。
+Windows 桌面应用：让 Claude 只走用户在 Clash（mihomo）里指定的线路，并管理多个 Claude 账号的本地数据。应用标识 `io.github.shiqiyux-cmd.cc-guard`，当前版本 0.3.1。面向已在用 Clash Verge Rev 的用户；不部署代理、不改订阅。
 
 Tauri 2 + Rust（Windows x64）+ React 19 + TypeScript + Radix UI + Tailwind CSS 4 + lucide-react + Vite；SQLite（bundled）+ ring AES-256-GCM 身份保险库。
 
@@ -37,6 +37,8 @@ CONTRIBUTING.md / SECURITY.md / NOTICE.md / LICENSE - 贡献、安全、第三�
 ## 验证
 
 `bun test`、`bun run build`、`bun run test:ui`、`bun run test:identities`、`cargo test --manifest-path src-tauri/Cargo.toml`；改 `src-tauri/src/mihomo/` 另跑 `py -I tests/mihomo-harness/run.py` 与 `connections.py`（需要 mihomo 内核，`MIHOMO_BIN` 指定路径）。
+
+开发静态出口换线时，从 `src/settings.tsx` 的候选线路表单和 `src-tauri/src/line.rs` 的 `write_settings` 入手。供应商节点由 Clash 管理，CC-Guard 通过专用入口验证公网 IP 后保存设置。运行 `py -I tests/mihomo-harness/rotation.py` 可用独立内核复现旧出口离线、新出口接管和日常分流。需要手动查看正在使用的线路时，`scripts/check-egress.py` 会对照日常和 Claude 两个入口。
 
 本机专属说明（旧版位置、回退方式、构建目录）放在被 Git 忽略的 `CLAUDE.local.md`。
 

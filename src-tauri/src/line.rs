@@ -1,5 +1,5 @@
 // [INPUT]: 应用数据目录 settings.json（线路设置与 CLI 工作目录）、用户 mihomo 控制接口、原生文件夹选择框。
-// [OUTPUT]: src/contract.ts 的 settings_read/write、line_check、line_connections、line_nodes、launch、workspace_choose；
+// [OUTPUT]: 已保存或草稿线路检查、验证后替换期望出口、节点列表、连接核对、启动与工作目录选择；
 //           托盘、身份复查与浏览器共用的同步门禁 gate()。
 // [POS]: 启动门禁的唯一入口：每次启动重新做线路检查，只有「通过」才启动；secret 只写不读，从不返回界面。
 // [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md
@@ -214,6 +214,9 @@ pub fn apply(mut stored: Stored, patch: SettingsPatch) -> Result<Stored, String>
         if !v.is_empty() && mihomo::controller_valid(&v).is_err() {
             return Err("controller 地址格式无效，应为 127.0.0.1:9097 这样的地址。".into());
         }
+        if v != line.controller {
+            line.secret.clear();
+        }
         line.controller = v;
     }
     if let Some(v) = p.secret {
@@ -294,11 +297,13 @@ fn unconfirmed(reason: String) -> Outcome {
     mihomo::unconfirmed(reason)
 }
 
-async fn check_stored(stored: Result<Stored, String>) -> Outcome {
-    match stored {
-        Ok(stored) => mihomo::check(&check_input(&stored.line)).await,
-        Err(e) => unconfirmed(e),
+async fn check_snapshot(dir: &Path, saved: &Stored, patch: Option<SettingsPatch>) -> Result<Outcome, String> {
+    let candidate = apply(saved.clone(), patch.unwrap_or_default())?;
+    let result = mihomo::check(&check_input(&candidate.line)).await;
+    if load_from(dir)?.line != saved.line {
+        return Err("检查期间线路设置已更改，请重新检查。".into());
     }
+    Ok(result)
 }
 
 /// 通过门禁的线路：专用端口地址 + 本次检查结果（时区跟随实际出口）。
@@ -309,10 +314,10 @@ pub struct Gate {
 
 /// 同步门禁：每次都重新检查；只有「通过」才给出端口。调用方须在非异步线程里调用。
 pub fn gate(app: &tauri::AppHandle) -> Result<Gate, Outcome> {
-    let stored = load(app);
-    let port = stored.as_ref().map(|s| s.line.port).unwrap_or(0);
-    let check = tauri::async_runtime::block_on(check_stored(stored));
-    passed(check, port)
+    let dir = data_dir(app).map_err(unconfirmed)?;
+    let stored = load_from(&dir).map_err(unconfirmed)?;
+    let check = tauri::async_runtime::block_on(check_snapshot(&dir, &stored, None)).map_err(unconfirmed)?;
+    passed(check, stored.line.port)
 }
 
 pub fn passed(check: Outcome, port: u16) -> Result<Gate, Outcome> {
@@ -442,17 +447,45 @@ pub async fn settings_read(app: tauri::AppHandle) -> Result<Settings, String> {
 
 #[tauri::command]
 pub async fn settings_write(app: tauri::AppHandle, patch: SettingsPatch) -> Result<Settings, String> {
-    let state = app.state::<Line>();
-    let _lock = state.0.lock().map_err(|_| "设置暂不可用。")?;
-    let dir = data_dir(&app)?;
-    let stored = apply(load_from(&dir)?, patch)?;
-    save_to(&dir, &stored)?;
+    // 与启动共用操作锁，避免旧线路已经通过检查，却在新线路提交后才启动。
+    let _operation = exclusive(&app)?;
+    let stored = write_settings(&data_dir(&app)?, &app.state::<Line>(), patch).await?;
     Ok(view(&stored, &workspace_of(&app, &stored)?))
 }
 
+async fn write_settings(dir: &Path, state: &Line, patch: SettingsPatch) -> Result<Stored, String> {
+    let previous = load_from(dir)?;
+    let route_submitted = patch.line.as_ref().is_some_and(|p| p.expected_ip.is_some() || p.port.is_some()
+        || p.controller.is_some() || p.secret.is_some() || p.node.is_some() || p.services.is_some());
+    let candidate = apply(previous.clone(), patch)?;
+    if !previous.line.expected_ip.is_empty() && candidate.line.expected_ip.is_empty() {
+        return Err("请填写新出口 IP，或先检测新线路的出口。".into());
+    }
+    if route_submitted && !candidate.line.expected_ip.is_empty() {
+        // 用完整候选线路和新 IP 复核，旧出口即使已失效也不参与检查。
+        let result = mihomo::check(&check_input(&candidate.line)).await;
+        if result.verdict != Verdict::Pass {
+            return Err(result.reason);
+        }
+    }
+    let _lock = state.0.lock().map_err(|_| "设置暂不可用。")?;
+    let mut current = load_from(dir)?;
+    if current.line != previous.line {
+        return Err("保存期间线路设置已更改，请重新检查。".into());
+    }
+    current.line = candidate.line;
+    save_to(dir, &current)?;
+    Ok(current)
+}
+
 #[tauri::command]
-pub async fn line_check(app: tauri::AppHandle) -> Result<Outcome, String> {
-    Ok(check_stored(load(&app)).await)
+pub async fn line_check(app: tauri::AppHandle, patch: Option<SettingsPatch>) -> Result<Outcome, String> {
+    let dir = data_dir(&app)?;
+    let result = match load_from(&dir) {
+        Ok(saved) => check_snapshot(&dir, &saved, patch).await,
+        Err(e) => Err(e),
+    };
+    Ok(result.unwrap_or_else(unconfirmed))
 }
 
 #[tauri::command]
@@ -462,8 +495,8 @@ pub async fn line_connections(app: tauri::AppHandle) -> Result<connections::Outc
 }
 
 #[tauri::command]
-pub async fn line_nodes(app: tauri::AppHandle) -> Result<Vec<String>, String> {
-    let stored = load(&app)?;
+pub async fn line_nodes(app: tauri::AppHandle, patch: Option<SettingsPatch>) -> Result<Vec<String>, String> {
+    let stored = apply(load(&app)?, patch.unwrap_or_default())?;
     mihomo::nodes(&stored.line.controller, &stored.line.secret).await
 }
 

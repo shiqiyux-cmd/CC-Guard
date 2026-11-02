@@ -47,10 +47,10 @@ export type LaunchResult = { launched: boolean; reason: string; check: LineCheck
 
 export type Commands = {
   settings_read: { args: Record<string, never>; result: Settings };
-  settings_write: { args: { patch: SettingsPatch }; result: Settings };
-  line_check: { args: Record<string, never>; result: LineCheck };
+  settings_write: { args: { patch: SettingsPatch }; result: Settings }; // A supplied pin is verified on the candidate line before saving.
+  line_check: { args: { patch?: SettingsPatch }; result: LineCheck }; // A patch previews unsaved settings.
   line_connections: { args: Record<string, never>; result: LineConnections };
-  line_nodes: { args: Record<string, never>; result: string[] };   // 读不到时报错（Err 字符串）
+  line_nodes: { args: { patch?: SettingsPatch }; result: string[] };   // 读不到时报错（Err 字符串）
   launch: { args: { entry: LaunchEntry }; result: LaunchResult };
   workspace_choose: { args: Record<string, never>; result: string | null };
 };

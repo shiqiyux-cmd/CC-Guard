@@ -1,6 +1,6 @@
 // [INPUT]: line_check 命令结果（或启动 / 向导带回的检查结果）与窗口可见性。
 // [OUTPUT]: useLineCheck 状态与顶部状态条：pass 绿、block 红、unknown 灰，显示原因、出口地区、分流模式与「重新检查」。
-// [POS]: 全局线路状态的唯一呈现；出错、无结果或超过 3 分钟未更新都按 unknown 显示，绝不沿用旧绿灯。
+// [POS]: 全局线路状态的唯一呈现；保存线路设置会使旧结果与进行中的旧检查失效。
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {invoke} from '@tauri-apps/api/core';
 import {ShieldAlert,ShieldCheck,ShieldQuestion,RefreshCw} from 'lucide-react';
@@ -9,18 +9,27 @@ import {modeLabel,shownVerdict,type Received} from './line-model';
 import {Button} from './components/ui/button';
 import {cn} from './components/ui/cn';
 import {useI18n} from './i18n';
-export type LineState={result:Received|null;error:string;busy:boolean;verdict:Verdict;run:()=>Promise<LineCheck|null>;accept:(check:LineCheck)=>void};
+export type LineState={result:Received|null;error:string;busy:boolean;verdict:Verdict;run:(reset?:boolean)=>Promise<LineCheck|null>;accept:(check:LineCheck)=>void};
 export function useLineCheck(active:boolean):LineState{
   const [result,setResult]=useState<Received|null>(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[now,setNow]=useState(Date.now());
-  const pending=useRef(false);
-  const accept=useCallback((check:LineCheck)=>{setResult({check,at:Date.now()});setError('');setNow(Date.now());},[]);
-  const run=useCallback(async()=>{
-    if(pending.current)return null;
-    pending.current=true;setBusy(true);
-    try{const check=await invoke<LineCheck>('line_check');accept(check);return check;}
-    catch(e){setError(String(e));return null;}
-    finally{pending.current=false;setBusy(false);}
-  },[accept]);
+  const generation=useRef(0),pending=useRef<number|null>(null);
+  const publish=useCallback((check:LineCheck)=>{setResult({check,at:Date.now()});setError('');setNow(Date.now());},[]);
+  const renderedGeneration=generation.current;
+  const accept=useCallback((check:LineCheck)=>{
+    if(renderedGeneration===generation.current)publish(check);
+  },[renderedGeneration,publish]);
+  const run=useCallback(async(reset=false)=>{
+    if(reset){generation.current++;setResult(null);setError('');}
+    const started=generation.current;
+    if(pending.current===started)return null;
+    pending.current=started;setBusy(true);
+    try{
+      const check=await invoke<LineCheck>('line_check');
+      if(started!==generation.current)return null;
+      publish(check);return check;
+    }catch(e){if(started===generation.current)setError(String(e));return null;}
+    finally{if(pending.current===started){pending.current=null;setBusy(false);}}
+  },[publish]);
   useEffect(()=>{
     if(!active)return;
     void run();

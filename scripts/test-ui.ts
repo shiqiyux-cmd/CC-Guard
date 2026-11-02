@@ -81,9 +81,10 @@ try{
     await wizard.getByLabel('Claude 专用端口').fill('7899');
     await wizard.getByRole('combobox',{name:'指定节点'}).click();
     await page.getByRole('option',{name:'JP-HY2'}).click();
-    await wizard.getByRole('button',{name:'保存并检查'}).click();
+    await wizard.getByRole('button',{name:'检查专用线路'}).click();
     await wizard.getByText('出口 IP 203.0.113.7').waitFor();
     assert.equal(await wizard.locator('[data-verdict]').getAttribute('data-verdict'),'unknown');
+    assert.equal(await fixture("window.appFixture.commands.filter(r=>r.command==='settings_write').length"),0);
     await wizard.getByRole('button',{name:'记住这个出口'}).click();
     await wizard.getByText(/配好了/).waitFor();
     await shot('wizard-done');
@@ -223,6 +224,33 @@ try{
     await page.waitForFunction(()=>document.documentElement.classList.contains('dark'));
     await page.emulateMedia({colorScheme:'light'});
     await page.waitForFunction(()=>!document.documentElement.classList.contains('dark'));
+  });
+
+  await step('旧出口过期后从草稿端口探测，新出口需手填并验证，失败保留旧配置',async()=>{
+    await nav('设置');
+    await set("s.force=null;s.holdNextCheck=true");
+    await bar().getByRole('button',{name:'重新检查'}).click();
+    await page.waitForFunction('!!window.appFixture.state.releaseCheck');
+    await set("delete s.exits[7899];s.exits[7901]='198.51.100.9'");
+    const expected=page.getByLabel('期望出口 IP');
+    await page.getByLabel('Claude 专用端口').fill('7901');
+    await page.getByRole('button',{name:'探测专用出口'}).click();
+    await page.getByText('本次探测的出口：198.51.100.9').waitFor();
+    assert.equal(await expected.inputValue(),'203.0.113.7');
+    await expected.fill('203.0.113.42');
+    const replace=page.getByRole('button',{name:'验证并更换出口'});
+    await replace.click();
+    await page.getByRole('alert').filter({hasText:/实际出口 198.51.100.9 与期望出口 203.0.113.42 不符/}).waitFor();
+    const stored=()=>fixture<[number,string]>('[window.appFixture.state.settings.line.port,window.appFixture.state.settings.line.expected_ip]');
+    assert.deepEqual(await stored(),[7899,'203.0.113.7']);
+    await set("s.exits[7901]='203.0.113.42'");
+    await replace.click();
+    await page.getByText('已保存的出口：203.0.113.42').waitFor();
+    await bar().getByText(/出口 IP 203.0.113.42/).waitFor();
+    assert.deepEqual(await stored(),[7901,'203.0.113.42']);
+    await set('s.releaseCheck()');
+    await page.waitForFunction('!window.appFixture.state.releaseCheck');
+    assert.match(await bar().innerText(),/出口 IP 203.0.113.42/);
   });
 
   await step('只调用契约命令，不出现 REMOVED 命令，无页面错误',async()=>{

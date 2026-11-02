@@ -1,6 +1,6 @@
 {
   "name": "cc-guard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Keep Claude on the dedicated line you chose in Clash, and switch Claude accounts safely (Windows).",
   "private": true,
   "type": "module",

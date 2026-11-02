@@ -6,7 +6,7 @@ main.tsx: 主窗口：侧栏（账号、连接，底部设置，CC-Guard 与版�
 status-bar.tsx: useLineCheck 与顶部状态条：pass 绿、block 红、unknown 灰，显示原因、出口地区、分流模式与「重新检查」。
 line-model.ts / line-model.test.ts: 显示用判定（错误、无结果、过期一律 unknown）、首次设置判断、分流模式文案、漏网合并排序。
 wizard.tsx: 首次向导（controller 空或 port 为 0 时弹出）：连上 Clash → 选端口和节点 → 检查并记住出口。
-settings.tsx: 设置页：线路（controller、secret 只写不回填、专用端口、节点下拉、期望 IP 与「用当前出口」）、通用（语言、主题、CLI 工作目录）、关于（CLI 卸载/重装）。
+settings.tsx: 设置页：从草稿线路探测公网出口作对照，手填服务商的新 IP 并验证后更换；另含语言、主题、CLI 工作目录及 CLI 卸载/重装。
 launch-bar.tsx: 「启动 Claude Code / 桌面版 / 网页版」，调 launch，被拦或出错用 Toast 显示原因并回写检查结果。
 connections.tsx: 连接页：判定、Claude 连接计数，漏网标红置顶；process_matching=false 时提示只按域名核对。
 identities.tsx: 账号页：账号卡片（使用中 / 切换 / ⋯ 改名删除）、空账号、保留选项、浏览器联动、切换与删除确认。

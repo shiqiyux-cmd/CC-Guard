@@ -8,7 +8,7 @@ A Windows desktop app for people who already run [Clash Verge Rev](https://githu
 
 ![Accounts page with line status, account cards and launch buttons](docs/images/status-pass.png)
 
-> v0.3.0, under active development. Windows 10/11 x64 only. Accounts and IPs in screenshots are test fixtures.
+> v0.3.1, under active development. Windows 10/11 x64 only. Accounts and IPs in screenshots are test fixtures.
 
 ## Features
 
@@ -54,6 +54,10 @@ It does **not** build proxies, fake your IP or location, or promise how the serv
 No release yet; build from source (see Development). The result is `CC-Guard_<version>_x64-setup.exe`, a per-user install without admin rights. Start CC-Guard from the Start menu or Explorer, **not from a terminal**: it would pass the terminal's environment on to Claude Code.
 
 ## How it decides
+
+To replace an expired static IP, close Claude sessions using the old line and update the Claude-only upstream in Clash. Keep everyday traffic on its existing route. In CC-Guard's line settings, update any changed controller, port or node and check the dedicated listener's observed exit. Enter the **public exit IP confirmed by the supplier** and verify the replacement. The proxy server address may differ from that IP. The old upstream can be offline. CC-Guard saves the new settings together only when at least two lookup services agree with the supplied IP.
+
+Run `python scripts/check-egress.py` from the project directory to compare the everyday and Claude listeners. It shows the public IP reported by each lookup service, the time each request took, and the rule and proxy chain that Mihomo reported.
 
 - Line check: read-only `/configs`, then ifconfig.co, Cloudflare trace and ipwho.is through the dedicated port. A port equal to one of Clash's general inbounds (mixed-port etc.) fails, because it follows everyday routing.
 - Connection check: read-only `/connections`. A Claude connection is fine when its chain contains the chosen node or group, so fallback switches inside a group are not false alarms; the exit IP itself is still verified by the line check.

@@ -5,5 +5,6 @@ app.html / app-fixture.tsx: 按 src/contract.ts 造的内存假后端（secret �
 identities.html / identities-fixture.tsx: 40 个虚构身份与失败/恢复场景，供 scripts/test-identities-ui.ts。
 mihomo-harness/run.py: 线路检查判卷台。独立 mihomo 实例（MIHOMO_BIN，默认 D:/clash_verge/verge-mihomo.exe，自检要求 v1.19.32）+ 本地假上游，10 个场景；只监听 127.0.0.1，只结束自己的子进程。
 mihomo-harness/connections.py: 连接核对判卷台，同样做法，11 个场景。
+mihomo-harness/rotation.py: 用文件型 provider 更换模拟上游，核对 Claude 入口、日常入口及直连对照。只用回环地址。
 两个判卷台被当作判卷标准：修改需说明理由。
 [PROTOCOL]: 变更时更新此头部，然后检查 CLAUDE.md

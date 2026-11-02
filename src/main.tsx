@@ -48,7 +48,7 @@ export function App(){
   useEffect(()=>{
     invoke<Settings>('settings_read').then(next=>{setSettings(next);setSettingsError('');if(needsSetup(next))setWizard(true);}).catch(e=>setSettingsError(String(e)));
   },[]);
-  const recheck=useCallback(()=>{void line.run();},[line.run]);
+  const recheck=useCallback(()=>line.run(true),[line.run]);
   const nav=(target:Page,label:string,Icon:typeof Activity)=><button key={target} type="button" disabled={busy} aria-current={page===target?'page':undefined} onClick={()=>setPage(target)}
     className={cn('flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors disabled:opacity-50',page===target?'bg-primary/10 font-semibold text-primary':'text-fg hover:bg-muted-bg')}>
     <Icon className="size-4" aria-hidden="true"/>{t(label)}</button>;
@@ -65,10 +65,10 @@ export function App(){
         {settings&&needsSetup(settings)&&!wizard&&<div role="note" className="mb-3 flex items-center gap-3 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm"><span className="flex-1">{t('线路还没设置好，Claude 无法启动。')}</span><button type="button" className="font-semibold text-primary" onClick={()=>setWizard(true)}>{t('开始设置')}</button></div>}
         {page==='accounts'&&<div className="space-y-4"><IdentityPanel onBusy={setBusy}/><LaunchBar disabled={busy} onCheck={line.accept}/></div>}
         {page==='connections'&&<ConnectionsPanel active={visible}/>}
-        {page==='settings'&&<SettingsPanel settings={settings} onSettings={setSettings} onCheck={line.accept} onRecheck={recheck}/>}
+        {page==='settings'&&<SettingsPanel settings={settings} onSettings={setSettings} onRecheck={recheck}/>}
       </main>
     </div>
-    {settings&&wizard&&<SetupWizard open settings={settings} onSettings={setSettings} onCheck={line.accept} onClose={()=>setWizard(false)}/>}
+    {settings&&wizard&&<SetupWizard open settings={settings} onSettings={setSettings} onRecheck={recheck} onClose={()=>setWizard(false)}/>}
   </div>;
 }
 export function Root({children}:{children:ReactNode}){

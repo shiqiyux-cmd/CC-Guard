@@ -15,6 +15,9 @@ const state={
   secret:'',
   force:null as Verdict|null,
   failCheck:false,
+  exits:{7899:EXIT} as Record<number,string>,
+  holdNextCheck:false,
+  releaseCheck:null as (()=>void)|null,
   nodes:['JP-HY2','KR-HY2'],
   leaks:[] as LineConnections['leaks'],
   processMatching:false,
@@ -25,14 +28,15 @@ const state={
     records:[{id:'a',name:'Fixture user',saved_at:1780000000000,bytes:2048,policy:{...defaultPolicy}},{id:'b',name:'Work account',saved_at:1780000001000,bytes:4096,policy:{...defaultPolicy}}]} as IdentityState,
 };
 const commands:{command:string;args:any}[]=[];
-function check():LineCheck{
-  const line=state.settings.line;
+function check(line=state.settings.line):LineCheck{
   const base={mode:'rule',country:'',timezone:'',ip:'',checked_at:Date.now()};
   if(!line.controller||!line.port)return {...base,verdict:'unknown',label:'无法确认',reason:'controller 地址为空。'};
-  const verdict=state.force??(line.expected_ip?'pass':'unknown');
-  if(verdict==='pass')return {...base,verdict,label:'通过',reason:`专用线路出口为 ${EXIT}，与期望一致。`,ip:EXIT,country:'US',timezone:'America/Los_Angeles'};
-  if(verdict==='block')return {...base,verdict,label:'拦住',reason:`实际出口 198.51.100.9 与期望出口 ${EXIT} 不符，已拦住。`,ip:'198.51.100.9',country:'JP',timezone:'Asia/Tokyo'};
-  return {...base,verdict,label:'无法确认',reason:'出口查询服务少于 2 个，无法确认。',ip:line.expected_ip?'':EXIT,country:line.expected_ip?'':'US',timezone:line.expected_ip?'':'America/Los_Angeles'};
+  const ip=state.force==='block'?'198.51.100.9':state.exits[line.port];
+  const verdict=state.force??(!ip||!line.expected_ip?'unknown':ip===line.expected_ip?'pass':'block');
+  if(verdict==='pass')return {...base,verdict,label:'通过',reason:`专用线路出口为 ${ip}，与期望一致。`,ip,country:'US',timezone:'America/Los_Angeles'};
+  if(verdict==='block')return {...base,verdict,label:'拦住',reason:`实际出口 ${ip} 与期望出口 ${line.expected_ip} 不符，已拦住。`,ip,country:'JP',timezone:'Asia/Tokyo'};
+  if(ip&&!line.expected_ip&&!state.force)return {...base,verdict,label:'无法确认',reason:`专用线路出口为 ${ip}，还没设定期望出口，无法确认。`,ip};
+  return {...base,verdict,label:'无法确认',reason:'出口查询服务少于 2 个，无法确认。'};
 }
 mockWindows('main');
 mockIPC(async(command,args:any)=>{
@@ -42,12 +46,26 @@ mockIPC(async(command,args:any)=>{
     case 'settings_read':return structuredClone(state.settings);
     case 'settings_write':{
       const {secret,...line}=args.patch.line??{};
+      const candidate={...state.settings.line,...line};
+      if(candidate.expected_ip&&Object.keys(args.patch.line??{}).length){
+        const verified=check(candidate);
+        if(verified.verdict!=='pass')throw verified.reason;
+      }
       if(typeof secret==='string'){state.secret=secret;state.settings.line.secret_set=secret.length>0;}
       Object.assign(state.settings.line,line);
       return structuredClone(state.settings);
     }
-    case 'line_check':if(state.failCheck)throw '读取 mihomo 控制接口超时。';return check();
-    case 'line_nodes':if(!state.settings.line.controller)throw '连不上 mihomo 控制接口。';return [...state.nodes];
+    case 'line_check':{
+      if(state.failCheck)throw '读取 mihomo 控制接口超时。';
+      const result=check({...state.settings.line,...args?.patch?.line});
+      if(!args?.patch&&state.holdNextCheck){
+        state.holdNextCheck=false;
+        await new Promise<void>(resolve=>{state.releaseCheck=resolve;});
+        state.releaseCheck=null;
+      }
+      return result;
+    }
+    case 'line_nodes':if(!(args?.patch?.line?.controller??state.settings.line.controller))throw '连不上 mihomo 控制接口。';return [...state.nodes];
     case 'line_connections':{
       const verdict:Verdict=state.leaks.length?'block':'pass';
       return {verdict,label:verdict==='pass'?'通过':'拦住',reason:verdict==='pass'?`专用线路出口为 ${EXIT}，与期望一致。`:`实际出口 198.51.100.9 与期望出口 ${EXIT} 不符，已拦住。`,total:12,claude:3,leaks:structuredClone(state.leaks),process_matching:state.processMatching,checked_at:Date.now()} satisfies LineConnections;
